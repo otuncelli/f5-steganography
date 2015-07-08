@@ -1,6 +1,6 @@
 ﻿namespace F5.Util
 {
-    public static class ArrayHelper
+    internal static class ArrayHelper
     {
         public static T[][] CreateJagged<T>(int x, int y)
         {

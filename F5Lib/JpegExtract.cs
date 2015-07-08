@@ -11,41 +11,30 @@ namespace F5
     public class JpegExtract : IDisposable
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(JpegExtract));
-
-        Stream output;
-        F5Random random;
+        private Stream output;
+        private F5Random random;
+        int extractedBit, pos;
         int availableExtractedBits = 0;
         int extractedFileLength = 0;
         int nBytesExtracted = 0;
         int extractedByte = 0;
         int shuffledIndex = 0;
-        int extractedBit, pos;
 
-        public JpegExtract(Stream output, String password)
+        public JpegExtract(Stream output, string password)
+            : this(output, Encoding.ASCII.GetBytes(password))
         {
-            this.output = output;
-            this.random = new F5Random(Encoding.ASCII.GetBytes(password));
         }
 
-        public static byte[] Extract(Stream input, String password)
+        public JpegExtract(Stream output, byte[] password)
         {
-            using (MemoryStream output = new MemoryStream())
-            using (JpegExtract je = new JpegExtract(output, password))
-            using (input)
-            {
-                je.Extract(input);
-                output.Position = 0;
-                byte[] result = new byte[output.Length];
-                output.Read(result, 0, (int)output.Length);
-                return result;
-            }
+            this.output = output;
+            this.random = new F5Random(password);
         }
 
         public void Extract(Stream input)
         {
             int[] coeff;
             int i, n, k, hash, code;
-            bool leaveContext = false;
 
             using (HuffmanDecode hd = new HuffmanDecode(input))
             {
@@ -53,7 +42,7 @@ namespace F5
             }
 
             logger.Info("Permutation starts");
-            Permutation permutation = new Permutation(coeff.Length, random);
+            Permutation permutation = new Permutation(coeff.Length, this.random);
             logger.Info(coeff.Length + " indices shuffled");
 
             // extract length information
@@ -74,10 +63,7 @@ namespace F5
                     {
                         this.pos++;
                         if (this.pos >= coeff.Length)
-                        {
-                            leaveContext = true;
-                            break;
-                        }
+                            goto leaveContext;
                         this.shuffledIndex = permutation.GetShuffled(this.pos);
                         this.extractedBit = ExtractBit(coeff);
                         if (this.extractedBit == -1)
@@ -87,9 +73,6 @@ namespace F5
                         code++;
                     }
 
-                    if (leaveContext)
-                        break;
-
                     for (i = 0; i < k; i++)
                     {
                         this.extractedByte |= (hash >> i & 1) << this.availableExtractedBits++;
@@ -98,15 +81,9 @@ namespace F5
                             WriteExtractedByte();
                             // check for pending end of embedded data
                             if (this.nBytesExtracted == this.extractedFileLength)
-                            {
-                                leaveContext = true;
-                                break;
-                            }
+                                goto leaveContext;
                         }
                     }
-
-                    if (leaveContext)
-                        break;
                 }
             }
             else
@@ -126,6 +103,7 @@ namespace F5
                     }
                 }
             }
+        leaveContext: ;
             if (this.nBytesExtracted < this.extractedFileLength)
             {
                 logger.Warn("Incomplete file: only " + this.nBytesExtracted + 

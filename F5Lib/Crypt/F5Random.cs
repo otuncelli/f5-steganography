@@ -1,39 +1,11 @@
-﻿using System;
-
-namespace F5.Crypt
+﻿namespace F5.Crypt
 {
-    using Org.BouncyCastle.Security;
-
-    internal class UnSecureRandom : Random
-    {
-        public UnSecureRandom(byte[] seed)
-            : base(ComputeHash(seed))
-        {
-        }
-
-        private static int ComputeHash(byte[] data)
-        {
-            unchecked
-            {
-                const int p = 16777619;
-                int hash = (int)2166136261;
-
-                for (int i = 0; i < data.Length; i++)
-                    hash = (hash ^ data[i]) * p;
-
-                hash += hash << 13;
-                hash ^= hash >> 7;
-                hash += hash << 3;
-                hash ^= hash >> 17;
-                hash += hash << 5;
-                return hash;
-            }
-        }
-    }
+    using Org.BouncyCastle.Crypto.Digests;
+    using Org.BouncyCastle.Crypto.Prng;
 
     public class BufferedSecureRandom
     {
-        private readonly SecureRandom random;
+        private readonly DigestRandomGenerator random;
         private readonly byte[] buffer;
         private readonly int bufferSize;
         private int current;
@@ -42,7 +14,8 @@ namespace F5.Crypt
         {
             this.bufferSize = bufferSize;
             this.buffer = new byte[bufferSize];
-            this.random = new SecureRandom(password);
+            this.random = new DigestRandomGenerator(new Sha1Digest());
+            this.random.AddSeedMaterial(password);
             this.random.NextBytes(this.buffer);
         }
 
@@ -70,7 +43,7 @@ namespace F5.Crypt
         /// get a random byte
         /// </summary>
         /// <returns>random signed byte</returns>
-        public byte GetNextByte()
+        public int GetNextByte()
         {
             return this.random.Next();
         }
