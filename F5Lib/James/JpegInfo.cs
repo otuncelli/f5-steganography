@@ -1,5 +1,8 @@
-﻿using System;
+﻿using F5.Util;
+using System;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace F5.James
 {
@@ -13,9 +16,9 @@ namespace F5.James
         public const byte Ah = 0;
         public const byte Al = 0;
 
-        internal float[][,] Components;
+        internal float[][][] Components;
         int[] compWidth, compHeight;
-        Image image;
+        Bitmap bmp;
         public String Comment;
         public int ImageHeight, ImageWidth;
         public int[] BlockHeight, BlockWidth;
@@ -30,16 +33,15 @@ namespace F5.James
 
         public JpegInfo(Image image, String comment)
         {
-            this.Components = new float[NumberOfComponents][,];
+            this.Components = new float[NumberOfComponents][][];
             this.compWidth = new int[NumberOfComponents];
             this.compHeight = new int[NumberOfComponents];
             this.BlockWidth = new int[NumberOfComponents];
             this.BlockHeight = new int[NumberOfComponents];
-            this.image = image;
+            this.bmp = (Bitmap)image;
             this.ImageWidth = image.Width;
             this.ImageHeight = image.Height;
-            // Comment = "JPEG Encoder Copyright 1998, James R. Weeks and BioElectroMech.  ";
-            this.Comment = comment;
+            this.Comment = comment ?? "JPEG Encoder Copyright 1998, James R. Weeks and BioElectroMech.  ";
             InitYCC();
         }
 
@@ -54,9 +56,10 @@ namespace F5.James
         private void InitYCC()
         {
             int MaxHsampFactor, MaxVsampFactor;
-            int i, x, y;
+            int i, x, y, width, height, stride;
+            int size, pixelSize, offset, yPos;
             byte r, g, b;
-            Color pixel;
+            byte[] pixelData;
 
             MaxHsampFactor = MaxVsampFactor = 1;
             for (i = 0; i < NumberOfComponents; i++)
@@ -76,41 +79,44 @@ namespace F5.James
                 this.BlockHeight[i] = (int)Math.Ceiling(this.compHeight[i] / 8.0);
             }
 
-            float[,] Y = new float[this.compHeight[0], this.compWidth[0]];
-            float[,] Cr1 = new float[this.compHeight[0], this.compWidth[0]];
-            float[,] Cb1 = new float[this.compHeight[0], this.compWidth[0]];
-            float[,] Cb2 = new float[this.compHeight[1], this.compWidth[1]];
-            float[,] Cr2 = new float[this.compHeight[2], this.compWidth[2]];
+            float[][] Y = ArrayHelper.CreateJagged<float>(this.compHeight[0], this.compWidth[0]);
+            float[][] Cr1 = ArrayHelper.CreateJagged<float>(this.compHeight[0], this.compWidth[0]);
+            float[][] Cb1 = ArrayHelper.CreateJagged<float>(this.compHeight[0], this.compWidth[0]);
+            float[][] Cb2 = ArrayHelper.CreateJagged<float>(this.compHeight[1], this.compWidth[1]);
+            float[][] Cr2 = ArrayHelper.CreateJagged<float>(this.compHeight[2], this.compWidth[2]);
 
-            using (Bitmap bmp = new Bitmap(image))
+            using (this.bmp)
             {
-                // In order to minimize the chance that grabPixels will throw an
-                // exception it may be necessary to grab some pixels every few scanlines and
-                // process those before going for more. The time expense may be prohibitive.
-                // However, for a situation where memory overhead is a concern, this may
-                // be the only choice.
-                for (y = 0, i = 0; y < this.ImageHeight; y++)
+                width = bmp.Width;
+                height = bmp.Height;
+                Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                BitmapData bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                stride = bmpData.Stride;
+                size = stride * height;
+                pixelSize = Image.GetPixelFormatSize(bmp.PixelFormat) / 8;
+                pixelData = new byte[size];
+                Marshal.Copy(bmpData.Scan0, pixelData, 0, size);
+                bmp.UnlockBits(bmpData);
+            }
+
+            // In order to minimize the chance that grabPixels will throw an
+            // exception it may be necessary to grab some pixels every few scanlines and
+            // process those before going for more. The time expense may be prohibitive.
+            // However, for a situation where memory overhead is a concern, this may
+            // be the only choice.
+            for (y = 0; y < height; y++)
+            {
+                yPos = stride * y;
+                for (x = 0; x < width; x++)
                 {
-                    for (x = 0; x < this.ImageWidth; x++)
-                    {
-                        pixel = bmp.GetPixel(x, y);
-                        /*r = pixel >> 16 & 0xff;
-                        g = pixel >> 8 & 0xff;
-                        b = pixel & 0xff;*/
-                        r = pixel.R;
-                        g = pixel.G;
-                        b = pixel.B;
-                       
-                        // The following three lines are a more correct color conversion
-                        // but the current conversion technique is sufficient and results in
-                        // a higher compression rate.
-                        // Y[y][x] = 16 + (float)(0.8588*(0.299 * (float)r + 0.587 * (float)g + 0.114 * (float)b ));
-                        // Cb1[y][x] = 128 + (float)(0.8784*(-0.16874 * (float)r - 0.33126 * (float)g + 0.5 * (float)b));
-                        // Cr1[y][x] = 128 + (float)(0.8784*(0.5 * (float)r - 0.41869 * (float)g - 0.08131 * (float)b));
-                        Y[y, x] = (float)(0.299 * r + 0.587 * g + 0.114 * b);
-                        Cb1[y, x] = 128 + (float)(-0.16874 * r - 0.33126 * g + 0.5 * b);
-                        Cr1[y, x] = 128 + (float)(0.5 * r - 0.41869 * g - 0.08131 * b);
-                    }
+                    offset = yPos + x * pixelSize;
+                    b = pixelData[offset];
+                    g = pixelData[offset + 1];
+                    r = pixelData[offset + 2];
+
+                    Y[y][x] = (float)(0.299 * r + 0.587 * g + 0.114 * b);
+                    Cb1[y][x] = 128 + (float)(-0.16874 * r - 0.33126 * g + 0.5 * b);
+                    Cr1[y][x] = 128 + (float)(0.5 * r - 0.41869 * g - 0.08131 * b);
                 }
             }
 
@@ -128,21 +134,21 @@ namespace F5.James
             this.Components[2] = Cr2;
         }
 
-        float[,] DownSample(float[,] C, int comp)
+        float[][] DownSample(float[][] C, int comp)
         {
             int inrow = 0, incol = 0, outrow, outcol, bias;
-            float[,] output = new float[this.compHeight[comp], this.compWidth[comp]];
+            float[][] output = ArrayHelper.CreateJagged<float>(this.compHeight[comp], this.compWidth[comp]);
             float temp;
             for (outrow = 0; outrow < this.compHeight[comp]; outrow++)
             {
                 bias = 1;
                 for (outcol = 0; outcol < this.compWidth[comp]; outcol++)
                 {
-                    temp = C[inrow, incol++]; // 00
-                    temp += C[inrow++, incol--]; // 01
-                    temp += C[inrow, incol++]; // 10
-                    temp += C[inrow--, incol++] + bias; // 11 -> 02
-                    output[outrow, outcol] = temp / (float)4.0;
+                    temp = C[inrow][incol++]; // 00
+                    temp += C[inrow++][incol--]; // 01
+                    temp += C[inrow][incol++]; // 10
+                    temp += C[inrow--][incol++] + bias; // 11 -> 02
+                    output[outrow][outcol] = temp / (float)4.0;
                     bias ^= 3;
                 }
                 inrow += 2;

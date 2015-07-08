@@ -1,4 +1,5 @@
-﻿using System;
+﻿using F5.Util;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -23,12 +24,11 @@ namespace F5.James
         };
 
         private int BufferPutBits, BufferPutBuffer;
-        private int[,] DC_Matrix0 = new int[12, 2];
-        private int[,] DC_Matrix1 = new int[12, 2];
-        private int[,] AC_Matrix0 = new int[255, 2];
-        private int[,] AC_Matrix1 = new int[255, 2];
-        private int[][,] DC_Matrix = new int[2][,];
-        private int[][,] AC_Matrix = new int[2][,];
+        private int[][] DC_Matrix0 = ArrayHelper.CreateJagged<int>(12, 2);
+        private int[][] DC_Matrix1 = ArrayHelper.CreateJagged<int>(12, 2);
+        private int[][] AC_Matrix0 = ArrayHelper.CreateJagged<int>(255, 2);
+        private int[][] AC_Matrix1 = ArrayHelper.CreateJagged<int>(255, 2);
+        private int[][][] DC_Matrix, AC_Matrix;
 
         private int[] BitsDCluminance = { 
                                             0x00, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 
@@ -104,16 +104,17 @@ namespace F5.James
             InitHuffman();
         }
 
-        private void Cal(int[] bits, int[] val, int[,] matrix)
+        private void CalcMatrix(int[] bits, int[] val, int[][] matrix)
         {
-            int i, l;
+            int i, j, v;
             int p = 0, code = 0;
-            for (l = 1; l < bits.Length; l++)
+            for (j = 1; j < bits.Length; j++)
             {
-                for (i = 0; i < bits[l]; i++)
+                for (i = 0; i < bits[j]; i++)
                 {
-                    matrix[val[p], 0] = code++;
-                    matrix[val[p], 1] = l;
+                    v = val[p];
+                    matrix[v][0] = code++;
+                    matrix[v][1] = j;
                     p++;
                 }
                 code <<= 1;
@@ -126,32 +127,32 @@ namespace F5.James
         /// </summary>
         private void InitHuffman()
         {
-            this.DC_Matrix = new int[][,] { this.DC_Matrix0, this.DC_Matrix1 };
-            this.AC_Matrix = new int[][,] { this.AC_Matrix0, this.AC_Matrix1 };
+            this.DC_Matrix = new int[][][] { this.DC_Matrix0, this.DC_Matrix1 };
+            this.AC_Matrix = new int[][][] { this.AC_Matrix0, this.AC_Matrix1 };
 
             // init of the DC values for the luminance [][0] is the code [][1] 
             // is the number of bit
-            Cal(this.BitsDCluminance, this.ValDCluminance, this.DC_Matrix0);
+            CalcMatrix(this.BitsDCluminance, this.ValDCluminance, this.DC_Matrix0);
 
             // Init of the AC hufmann code for luminance matrix [][][0] 
             // is the code & matrix[][][1] is the number of bit
-            Cal(this.BitsACluminance, this.ValACluminance, this.AC_Matrix0);
+            CalcMatrix(this.BitsACluminance, this.ValACluminance, this.AC_Matrix0);
 
             // init of the DC values for the chrominance [][0] is the code [][1] 
             // is the number of bit
-            Cal(this.BitsDCchrominance, this.ValDCchrominance, this.DC_Matrix1);
+            CalcMatrix(this.BitsDCchrominance, this.ValDCchrominance, this.DC_Matrix1);
 
             // Init of the AC hufmann code for the chrominance matrix [][][0] 
             // is the code & matrix[][][1] is the number of bit needed
-            Cal(this.BitsACchrominance, this.ValACchrominance, this.AC_Matrix1);
+            CalcMatrix(this.BitsACchrominance, this.ValACchrominance, this.AC_Matrix1);
         }
 
-        private void WriteByte(Stream @out, int b)
+        private void WriteByte(Stream streamOut, int b)
         {
-            @out.WriteByte((byte)b);
+            streamOut.WriteByte((byte)b);
         }
 
-        private void BufferIt(BufferedStream outStream, int code, int size)
+        private void BufferIt(Stream streamOut, int code, int size)
         {
             int PutBuffer = code;
             int PutBits = this.BufferPutBits;
@@ -164,9 +165,9 @@ namespace F5.James
             while (PutBits >= 8)
             {
                 int c = PutBuffer >> 16 & 0xFF;
-                WriteByte(outStream, c);
+                WriteByte(streamOut, c);
                 if (c == 0xFF)
-                    WriteByte(outStream, 0);
+                    WriteByte(streamOut, 0);
                 PutBuffer <<= 8;
                 PutBits -= 8;
             }
@@ -202,7 +203,7 @@ namespace F5.James
         /// <summary>
         /// HuffmanBlockEncoder run length encodes and Huffman encodes the quantized data.
         /// </summary>
-        public void HuffmanBlockEncoder(BufferedStream outStream, int[] zigzag, int prec, int DCcode, int ACcode)
+        public void HuffmanBlockEncoder(Stream streamOut, int[] zigzag, int prec, int DCcode, int ACcode)
         {
             int temp, temp2, nbits, k, r, i;
 
@@ -220,11 +221,11 @@ namespace F5.James
                 temp >>= 1;
             }
             // if (nbits > 11) nbits = 11;
-            BufferIt(outStream, this.DC_Matrix[DCcode][nbits, 0], this.DC_Matrix[DCcode][nbits, 1]);
+            BufferIt(streamOut, this.DC_Matrix[DCcode][nbits][0], this.DC_Matrix[DCcode][nbits][1]);
             // The arguments in bufferIt are code and size.
             if (nbits != 0)
             {
-                BufferIt(outStream, temp2, nbits);
+                BufferIt(streamOut, temp2, nbits);
             }
 
             // The AC portion
@@ -239,7 +240,7 @@ namespace F5.James
                 {
                     while (r > 15)
                     {
-                        BufferIt(outStream, this.AC_Matrix[ACcode][0xF0, 0], this.AC_Matrix[ACcode][0xF0, 1]);
+                        BufferIt(streamOut, this.AC_Matrix[ACcode][0xF0][0], this.AC_Matrix[ACcode][0xF0][1]);
                         r -= 16;
                     }
                     temp2 = temp;
@@ -254,8 +255,8 @@ namespace F5.James
                         nbits++;
                     }
                     i = (r << 4) + nbits;
-                    BufferIt(outStream, this.AC_Matrix[ACcode][i, 0], this.AC_Matrix[ACcode][i, 1]);
-                    BufferIt(outStream, temp2, nbits);
+                    BufferIt(streamOut, this.AC_Matrix[ACcode][i][0], this.AC_Matrix[ACcode][i][1]);
+                    BufferIt(streamOut, temp2, nbits);
 
                     r = 0;
                 }
@@ -263,7 +264,7 @@ namespace F5.James
 
             if (r > 0)
             {
-                BufferIt(outStream, this.AC_Matrix[ACcode][0, 0], this.AC_Matrix[ACcode][0, 1]);
+                BufferIt(streamOut, this.AC_Matrix[ACcode][0][0], this.AC_Matrix[ACcode][0][1]);
             }
         }
     }

@@ -101,7 +101,7 @@ namespace F5
             }
 
             using (Image image = Image.FromFile(inFileName))
-            using (JpegEncoder jpg = new JpegEncoder(image, quality, File.OpenWrite(outFileName), comment))
+            using (JpegEncoder jpg = new JpegEncoder(image, File.OpenWrite(outFileName), comment, quality))
             {
                 if (embFileName == null)
                 {

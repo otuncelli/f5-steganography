@@ -1,4 +1,5 @@
-﻿using System;
+﻿using log4net;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -7,7 +8,8 @@ using System.Text;
 namespace F5.James
 {
     using F5.Crypt;
-using log4net;
+    using F5.Util;
+
     public sealed class JpegEncoder : IDisposable
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(JpegEncoder));
@@ -28,7 +30,7 @@ using log4net;
         /// <param name="quality">Quality of the image. 0 to 100 and from bad image quality, high compression to good image quality low compression</param>
         /// <param name="output"></param>
         /// <param name="comment"></param>
-        public JpegEncoder(Image image, int quality, Stream output, String comment)
+        public JpegEncoder(Image image, Stream output, String comment, int quality = 80)
         {
             this.quality = quality;
 
@@ -221,11 +223,11 @@ using log4net;
 
         private int[] GetCoeff(int MinBlockWidth, int MinBlockHeight)
         {
-            float[,] dctArray1 = new float[8, 8];
-            double[,] dctArray2 = new double[8, 8];
+            float[][] dctArray1 = ArrayHelper.CreateJagged<float>(8, 8);
+            double[][] dctArray2 = ArrayHelper.CreateJagged<double>(8, 8);
             int[] dctArray3 = new int[8 * 8];
             int[] coeff;
-            float[,] inputArray;
+            float[][] inputArray;
             int i, j, r, c, a, b, comp;
             int ypos, Width, Height, xblockoffset, yblockoffset;
             int xpos = 0;
@@ -296,7 +298,7 @@ using log4net;
                                         // dctArray1[a][b] = inputArray[ypos +
                                         // yblockoffset + a][xpos + xblockoffset +
                                         // b];
-                                        dctArray1[a, b] = inputArray[ia, ib];
+                                        dctArray1[a][b] = inputArray[ia][ib];
                                     }
                                 }
                                 // The following code commented out because on some
@@ -581,30 +583,31 @@ using log4net;
                         }
                     }
                 }
+            }
 
-                shuffledIndex = 0;
-                for (r = 0; r < MinBlockHeight; r++)
+            logger.Info("Starting Huffman Encoding.");
+            shuffledIndex = 0;
+            for (r = 0; r < MinBlockHeight; r++)
+            {
+                for (c = 0; c < MinBlockWidth; c++)
                 {
-                    for (c = 0; c < MinBlockWidth; c++)
+                    for (comp = 0; comp < JpegInfo.NumberOfComponents; comp++)
                     {
-                        for (comp = 0; comp < JpegInfo.NumberOfComponents; comp++)
+                        for (i = 0; i < JpegObj.VsampFactor[comp]; i++)
                         {
-                            for (i = 0; i < JpegObj.VsampFactor[comp]; i++)
+                            for (j = 0; j < JpegObj.HsampFactor[comp]; j++)
                             {
-                                for (j = 0; j < JpegObj.HsampFactor[comp]; j++)
-                                {
-                                    Array.Copy(coeff, shuffledIndex, emptyArray, 0, 64);
-                                    this.huffman.HuffmanBlockEncoder(this.output, emptyArray, lastDCvalue[comp],
-                                        this.JpegObj.DCtableNumber[comp], this.JpegObj.ACtableNumber[comp]);
-                                    lastDCvalue[comp] = emptyArray[0];
-                                    shuffledIndex += 64;
-                                }
+                                Array.Copy(coeff, shuffledIndex, emptyArray, 0, 64);
+                                this.huffman.HuffmanBlockEncoder(this.output, emptyArray, lastDCvalue[comp],
+                                    this.JpegObj.DCtableNumber[comp], this.JpegObj.ACtableNumber[comp]);
+                                lastDCvalue[comp] = emptyArray[0];
+                                shuffledIndex += 64;
                             }
                         }
                     }
                 }
-                this.huffman.FlushBuffer(this.output);
             }
+            this.huffman.FlushBuffer(this.output);
         }
 
         #region IDisposable
@@ -626,8 +629,15 @@ using log4net;
                 return;
             if (disposing)
             {
-                this.embeddedData.Dispose();
-                this.output.Dispose();
+                if (this.embeddedData != null)
+                {
+                    this.embeddedData.Dispose();
+                }
+
+                if (this.output != null)
+                {
+                    this.output.Dispose();
+                }
             }
             this._disposed = true;
         }

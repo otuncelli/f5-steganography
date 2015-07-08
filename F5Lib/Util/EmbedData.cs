@@ -1,12 +1,11 @@
 ﻿using System;
 using System.IO;
 
-namespace F5
+namespace F5.Util
 {
     internal sealed class EmbedData : IDisposable
     {
         private readonly Stream data;
-
 
         internal EmbedData(Stream data)
         {
@@ -48,10 +47,6 @@ namespace F5
         public long Seek(long offset, SeekOrigin origin)
         {
             return this.data.Seek(offset, origin);
-        }
-        public void Flush()
-        {
-            this.data.Flush();
         }
 
         #region IDisposable

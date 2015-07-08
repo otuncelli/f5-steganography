@@ -2,6 +2,7 @@
 
 namespace F5.Ortega
 {
+    using F5.Util;
     internal class HuffTable
     {
         // Instance variables

@@ -8,4 +8,5 @@ Python Implementation:
 (https://github.com/jackfengji/f5-steganography/)
 
 ## Dependencies:
+BouncyCastle
 log4net

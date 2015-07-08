@@ -2,6 +2,8 @@
 
 namespace F5.James
 {
+    using F5.Util;
+
     // Version 1.0a
     // Copyright (C) 1998, James R. Weeks and BioElectroMech.
     // Visit BioElectroMech at www.obrador.com. Email James@obrador.com.
@@ -24,11 +26,8 @@ namespace F5.James
         // DCT Block Size - default 8
         public const int N = 8;
 
-        // Image Quality (0-100) - default 80 (good image / good compression)
-        const int DEFAULT_QUALITY = 80;
-
-        internal int[][] Quantum = new int[2][];
-        internal double[][] Divisors = new double[2][];
+        internal int[][] Quantum;
+        internal double[][] Divisors;
 
         /// <summary>
         ///  Constructs a new DCT object. Initializes the cosine transform matrix
@@ -38,7 +37,7 @@ namespace F5.James
         ///  pixelated, usually to a block size of N.
         /// </summary>
         /// <param name="quality">The quality of the image (0 worst - 100 best)</param>
-        internal DCT(int quality)
+        internal DCT(int quality = 80)
         {
             InitMatrix(quality);
         }
@@ -95,7 +94,7 @@ namespace F5.James
         /// <summary>
         /// This method quantitizes data and rounds it to the nearest integer.
         /// </summary>
-        public int[] QuantizeBlock(double[,] inputData, int code)
+        public int[] QuantizeBlock(double[][] inputData, int code)
         {
             int[] outputData = new int[N * N];
             int i, j;
@@ -105,7 +104,7 @@ namespace F5.James
                 for (j = 0; j < N; j++)
                 {
                     // The second line results in significantly better compression.
-                    outputData[index] = (int)Math.Round(inputData[i, j] * ((double[])this.Divisors[code])[index]);
+                    outputData[index] = (int)Math.Round(inputData[i][j] * ((double[])this.Divisors[code])[index]);
                     // outputData[index] = (int)(((inputData[i, j] * (((double[])(Divisors[code]))[index])) + 16384.5) -16384);
                     index++;
                 }
@@ -117,7 +116,7 @@ namespace F5.James
         /// This is the method for quantizing a block DCT'ed with forwardDCTExtreme
         /// This method quantitizes data and rounds it to the nearest integer.
         /// </summary>
-        public int[] QuantizeBlockExtreme(double[,] inputData, int code)
+        public int[] QuantizeBlockExtreme(double[][] inputData, int code)
         {
             int[] outputData = new int[N * N];
             int i, j;
@@ -126,7 +125,7 @@ namespace F5.James
             {
                 for (j = 0; j < N; j++)
                 {
-                    outputData[index] = (int)Math.Round(inputData[i, j] / this.Quantum[code][index]);
+                    outputData[index] = (int)Math.Round(inputData[i][j] / this.Quantum[code][index]);
                     index++;
                 }
             }
@@ -136,9 +135,9 @@ namespace F5.James
         /// <summary>
         /// This method preforms a DCT on a block of image data using the AAN method as implemented in the IJG Jpeg-6a library.
         /// </summary>
-        public static double[,] ForwardDCT(float[,] input)
+        public static double[][] ForwardDCT(float[][] input)
         {
-            double[,] output = new double[N, N];
+            double[][] output = ArrayHelper.CreateJagged<double>(N, N);
             double tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
             double tmp10, tmp11, tmp12, tmp13;
             double z1, z2, z3, z4, z5, z11, z13;
@@ -149,32 +148,32 @@ namespace F5.James
             {
                 for (j = 0; j < N; j++)
                 {
-                    output[i, j] = input[i, j] - 128.0;
+                    output[i][j] = input[i][j] - 128.0;
                 }
             }
 
             for (i = 0; i < N; i++)
             {
-                tmp0 = output[i, 0] + output[i, 7];
-                tmp7 = output[i, 0] - output[i, 7];
-                tmp1 = output[i, 1] + output[i, 6];
-                tmp6 = output[i, 1] - output[i, 6];
-                tmp2 = output[i, 2] + output[i, 5];
-                tmp5 = output[i, 2] - output[i, 5];
-                tmp3 = output[i, 3] + output[i, 4];
-                tmp4 = output[i, 3] - output[i, 4];
+                tmp0 = output[i][0] + output[i][7];
+                tmp7 = output[i][0] - output[i][7];
+                tmp1 = output[i][1] + output[i][6];
+                tmp6 = output[i][1] - output[i][6];
+                tmp2 = output[i][2] + output[i][5];
+                tmp5 = output[i][2] - output[i][5];
+                tmp3 = output[i][3] + output[i][4];
+                tmp4 = output[i][3] - output[i][4];
 
                 tmp10 = tmp0 + tmp3;
                 tmp13 = tmp0 - tmp3;
                 tmp11 = tmp1 + tmp2;
                 tmp12 = tmp1 - tmp2;
 
-                output[i, 0] = tmp10 + tmp11;
-                output[i, 4] = tmp10 - tmp11;
+                output[i][0] = tmp10 + tmp11;
+                output[i][4] = tmp10 - tmp11;
 
                 z1 = (tmp12 + tmp13) * 0.707106781;
-                output[i, 2] = tmp13 + z1;
-                output[i, 6] = tmp13 - z1;
+                output[i][2] = tmp13 + z1;
+                output[i][6] = tmp13 - z1;
 
                 tmp10 = tmp4 + tmp5;
                 tmp11 = tmp5 + tmp6;
@@ -188,34 +187,34 @@ namespace F5.James
                 z11 = tmp7 + z3;
                 z13 = tmp7 - z3;
 
-                output[i, 5] = z13 + z2;
-                output[i, 3] = z13 - z2;
-                output[i, 1] = z11 + z4;
-                output[i, 7] = z11 - z4;
+                output[i][5] = z13 + z2;
+                output[i][3] = z13 - z2;
+                output[i][1] = z11 + z4;
+                output[i][7] = z11 - z4;
             }
 
             for (i = 0; i < N; i++)
             {
-                tmp0 = output[0, i] + output[7, i];
-                tmp7 = output[0, i] - output[7, i];
-                tmp1 = output[1, i] + output[6, i];
-                tmp6 = output[1, i] - output[6, i];
-                tmp2 = output[2, i] + output[5, i];
-                tmp5 = output[2, i] - output[5, i];
-                tmp3 = output[3, i] + output[4, i];
-                tmp4 = output[3, i] - output[4, i];
+                tmp0 = output[0][i] + output[7][i];
+                tmp7 = output[0][i] - output[7][i];
+                tmp1 = output[1][i] + output[6][i];
+                tmp6 = output[1][i] - output[6][i];
+                tmp2 = output[2][i] + output[5][i];
+                tmp5 = output[2][i] - output[5][i];
+                tmp3 = output[3][i] + output[4][i];
+                tmp4 = output[3][i] - output[4][i];
 
                 tmp10 = tmp0 + tmp3;
                 tmp13 = tmp0 - tmp3;
                 tmp11 = tmp1 + tmp2;
                 tmp12 = tmp1 - tmp2;
 
-                output[0, i] = tmp10 + tmp11;
-                output[4, i] = tmp10 - tmp11;
+                output[0][i] = tmp10 + tmp11;
+                output[4][i] = tmp10 - tmp11;
 
                 z1 = (tmp12 + tmp13) * 0.707106781;
-                output[2, i] = tmp13 + z1;
-                output[6, i] = tmp13 - z1;
+                output[2][i] = tmp13 + z1;
+                output[6][i] = tmp13 - z1;
 
                 tmp10 = tmp4 + tmp5;
                 tmp11 = tmp5 + tmp6;
@@ -229,10 +228,10 @@ namespace F5.James
                 z11 = tmp7 + z3;
                 z13 = tmp7 - z3;
 
-                output[5, i] = z13 + z2;
-                output[3, i] = z13 - z2;
-                output[1, i] = z11 + z4;
-                output[7, i] = z11 - z4;
+                output[5][i] = z13 + z2;
+                output[3][i] = z13 - z2;
+                output[1][i] = z11 + z4;
+                output[7][i] = z11 - z4;
             }
             return output;
         }
@@ -247,9 +246,9 @@ namespace F5.James
         /// For now the final output is unusable. The associated quantization step
         /// needs some tweaking. If you get this part working, please let me know.
         /// </summary>
-        public static double[,] ForwardDCTExtreme(float[,] input)
+        public static double[][] ForwardDCTExtreme(float[][] input)
         {
-            double[,] output = new double[N, N];
+            double[][] output = ArrayHelper.CreateJagged<double>(N, N);
             int v, u, x, y;
             for (v = 0; v < N; v++)
             {
@@ -259,11 +258,11 @@ namespace F5.James
                     {
                         for (y = 0; y < N; y++)
                         {
-                            output[v, u] += input[x, y] * Math.Cos((double)(2 * x + 1) * (double)u * Math.PI / 16)
+                            output[v][u] += input[x][y] * Math.Cos((double)(2 * x + 1) * (double)u * Math.PI / 16)
                                     * Math.Cos((double)(2 * y + 1) * (double)v * Math.PI / 16);
                         }
                     }
-                    output[v, u] *= 0.25 * (u == 0 ? 1.0 / Math.Sqrt(2) : (double)1.0)
+                    output[v][u] *= 0.25 * (u == 0 ? 1.0 / Math.Sqrt(2) : (double)1.0)
                             * (v == 0 ? 1.0 / Math.Sqrt(2) : (double)1.0);
                 }
             }

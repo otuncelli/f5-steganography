@@ -4,6 +4,8 @@ using System.IO;
 
 namespace F5.Ortega
 {
+    using F5.Util;
+
     internal sealed class HuffmanDecode : IDisposable
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(HuffmanDecode));
@@ -72,9 +74,6 @@ namespace F5.Ortega
             35, 36, 48, 49, 57, 58, 62, 63 
         };
 
-        HuffTable htDC0, htDC1;
-        HuffTable htAC0, htAC1;
-
         EmbedData dis;
 
         // Constructor Method
@@ -98,7 +97,7 @@ namespace F5.Ortega
                             SetSOF0();
                             break;
                         case 196:
-                            SetDht();
+                            SetDHT();
                             break;
                         case 219:
                             SetDqt();
@@ -299,7 +298,17 @@ namespace F5.Ortega
             this.ZZ[k] = Extend(this.ZZ[k], this.Ssss);
         }
 
-        private void SetDht()
+        private void FillDHT(int index)
+        {
+            HuffTable ht = new HuffTable(this.dis, this.Lh);
+            this.Lh -= ht.Len;
+            this.HuffVal[index] = ht.HuffVal;
+            this.ValPtr[index] = ht.ValPtr;
+            this.MaxCode[index] = ht.MaxCode;
+            this.MinCode[index] = ht.MinCode;
+        }
+
+        private void SetDHT()
         {
             // Read in Huffman tables
             // Lh length
@@ -314,52 +323,16 @@ namespace F5.Ortega
                 if (this.Th == 0)
                 {
                     if (this.Tc == 0)
-                    {
-                        this.htDC0 = new HuffTable(this.dis, this.Lh);
-                        this.Lh -= this.htDC0.Len;
-                        this.HuffVal[0] = this.htDC0.HuffVal;
-                        this.ValPtr[0] = this.htDC0.ValPtr;
-                        this.MaxCode[0] = this.htDC0.MaxCode;
-                        this.MinCode[0] = this.htDC0.MinCode;
-                        this.htDC0 = null;
-                        GC.Collect();
-                    }
+                        FillDHT(0);
                     else
-                    {
-                        this.htAC0 = new HuffTable(this.dis, this.Lh);
-                        this.Lh -= this.htAC0.Len;
-                        this.HuffVal[1] = this.htAC0.HuffVal;
-                        this.ValPtr[1] = this.htAC0.ValPtr;
-                        this.MaxCode[1] = this.htAC0.MaxCode;
-                        this.MinCode[1] = this.htAC0.MinCode;
-                        this.htAC0 = null;
-                        GC.Collect();
-                    }
+                        FillDHT(1);
                 }
                 else
                 {
                     if (this.Tc == 0)
-                    {
-                        this.htDC1 = new HuffTable(this.dis, this.Lh);
-                        this.Lh -= this.htDC1.Len;
-                        this.HuffVal[2] = this.htDC1.HuffVal;
-                        this.ValPtr[2] = this.htDC1.ValPtr;
-                        this.MaxCode[2] = this.htDC1.MaxCode;
-                        this.MinCode[2] = this.htDC1.MinCode;
-                        this.htDC1 = null;
-                        GC.Collect();
-                    }
+                        FillDHT(2);
                     else
-                    {
-                        this.htAC1 = new HuffTable(this.dis, this.Lh);
-                        this.Lh -= this.htAC1.Len;
-                        this.HuffVal[3] = this.htAC1.HuffVal;
-                        this.ValPtr[3] = this.htAC1.ValPtr;
-                        this.MaxCode[3] = this.htAC1.MaxCode;
-                        this.MinCode[3] = this.htAC1.MinCode;
-                        this.htAC1 = null;
-                        GC.Collect();
-                    }
+                        FillDHT(3);
                 }
             }
         }

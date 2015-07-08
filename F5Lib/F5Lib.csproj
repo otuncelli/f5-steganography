@@ -31,6 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="BouncyCastle.Crypto">
+      <HintPath>..\packages\BouncyCastle.1.7.0\lib\Net40-Client\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
     <Reference Include="log4net">
       <HintPath>..\packages\log4net.2.0.3\lib\net40-full\log4net.dll</HintPath>
     </Reference>
@@ -41,7 +44,8 @@
   <ItemGroup>
     <Compile Include="Crypt\F5Random.cs" />
     <Compile Include="Crypt\Permutation.cs" />
-    <Compile Include="EmbedData.cs" />
+    <Compile Include="Util\ArrayHelper.cs" />
+    <Compile Include="Util\EmbedData.cs" />
     <Compile Include="James\DCT.cs" />
     <Compile Include="James\Huffman.cs" />
     <Compile Include="James\JpegEncoder.cs" />
