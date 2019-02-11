@@ -28,7 +28,7 @@ namespace F5
                     jpegFileName = args[i];
                     continue;
                 }
-                if (args.Length < +1)
+                if (args.Length < i + 1)
                 {
                     Console.WriteLine("Missing parameter for switch " + args[i]);
                     StandardUsage();
